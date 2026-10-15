@@ -1,0 +1,78 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Tier 3: Database Service (MySQL 8.0)
+  # (Can be bypassed when connecting directly to Amazon RDS)
+  # ---------------------------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: quickcart-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-Singh5322f}
+      MYSQL_DATABASE: ${DB_NAME:-quickcart_db}
+    ports:
+      - "${DB_PORT_FORWARD:-3307}:3306"
+    volumes:
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - quickcart_mysql_data:/var/lib/mysql
+    networks:
+      - quickcart-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Tier 2: Application Service (Node.js + Express API)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quickcart-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      NODE_ENV: production
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-Singh5322f}
+      DB_NAME: ${DB_NAME:-quickcart_db}
+      DB_SSL: ${DB_SSL:-false}
+      CLIENT_URL: "*"
+      JWT_SECRET: ${JWT_SECRET:-quickcart_secret_key_aws_3tier_2026}
+      JWT_EXPIRES_IN: 7d
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - quickcart-network
+
+  # ---------------------------------------------------------------------------
+  # Tier 1: Presentation Service (React + Vite served via Nginx)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: quickcart-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - quickcart-network
+
+networks:
+  quickcart-network:
+    driver: bridge
+
+volumes:
+  quickcart_mysql_data:
+    driver: local
