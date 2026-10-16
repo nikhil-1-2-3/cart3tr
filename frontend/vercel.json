@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://quickcart-3tier-alb-64562971.ap-south-1.elb.amazonaws.com/api/:path*"
+    }
+  ]
+}
